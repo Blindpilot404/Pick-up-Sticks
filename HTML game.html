@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pick Up Sticks</title>
+<style>
+:root{--bg:#f3efe6;--ink:#2a2118;--mute:#7a6e60;--btn:#2a2118;--btnink:#f3efe6;--felt:#2f5d50;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15110d;--ink:#efe6d6;--mute:#a09585;--btn:#efe6d6;--btnink:#15110d;--felt:#234a40}}
+:root[data-theme="dark"]{--bg:#15110d;--ink:#efe6d6;--mute:#a09585;--btn:#efe6d6;--btnink:#15110d;--felt:#234a40}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Georgia,"Times New Roman",serif;display:flex;flex-direction:column;align-items:center;padding:14px 12px 24px;min-height:100vh}
+h1{margin:4px 0 2px;font-size:30px;letter-spacing:.5px;font-weight:700}
+.sub{margin:0 0 10px;color:var(--mute);font-size:14px;text-align:center;max-width:420px;line-height:1.4}
+.bar{display:flex;gap:18px;align-items:center;justify-content:center;margin:4px 0 10px;font-size:16px}
+.bar b{font-size:22px;font-variant-numeric:tabular-nums}
+.bar span{color:var(--mute);font-size:13px;display:block}
+.strikes{letter-spacing:4px;font-size:20px}
+#wrap{position:relative;width:100%;max-width:520px}
+canvas{width:100%;display:block;border-radius:14px;background:var(--felt);touch-action:none;cursor:pointer}
+#msg{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(15,12,9,.78);border-radius:14px;color:#f3efe6;text-align:center;padding:20px}
+#msg h2{margin:0 0 6px;font-size:28px}
+#msg p{margin:0 0 16px;font-size:16px}
+button{font:inherit;font-size:16px;padding:10px 22px;border-radius:999px;border:0;background:var(--btn);color:var(--btnink);cursor:pointer}
+#msg button{background:#f3efe6;color:#2a2118;width:100%;max-width:300px;margin:4px 0;border-radius:14px;padding:10px 14px}#msg small{display:block;opacity:.7;font-size:12px}#info{min-height:24px;margin:0 0 8px;font-size:14px;color:var(--mute);text-align:center}.chip{display:inline-block;width:22px;height:22px;line-height:18px;font-size:12px;color:#fff;text-shadow:0 0 2px #000,0 0 2px #000;text-align:center;border-radius:50%;margin:0 3px;vertical-align:middle;border:2px solid var(--ink)}.gl{display:none;text-decoration:none;margin-right:3px}body.shapes .gl{display:inline}.done{opacity:.2}.cur{transform:scale(1.35)}#menu,#set{font-size:14px;padding:8px 18px}
+button:focus-visible{outline:3px solid #e0a43a;outline-offset:2px}
+.legend{display:flex;flex-wrap:wrap;gap:10px 16px;justify-content:center;margin-top:12px;font-size:13px;color:var(--mute)}
+.legend i{display:inline-block;width:22px;height:6px;border-radius:3px;margin-right:6px;vertical-align:middle}
+.toast{height:22px;margin-top:8px;font-size:14px;color:var(--mute)}
+</style>
+</head>
+<body>
+<h1>Pick Up Sticks</h1>
+<p class="sub">Pick up sticks with nothing on top. Buried sticks and bumps are strikes. Change controls and shapes in Settings.</p>
+<div class="bar">
+  <div><span>Score</span><b id="score">0</b></div>
+  <div><span>Left</span><b id="left">0</b></div>
+  <div><span>Best</span><b id="best">0</b></div>
+  <div><span>Strikes</span><div class="strikes" id="strikes"></div></div>
+</div>
+<div id="info"></div>
+<div id="wrap">
+  <canvas id="c" aria-label="Pile of sticks"></canvas>
+  <div id="msg"><h2 id="mt"></h2><p id="mp"></p><div id="mb" style="width:100%;display:flex;flex-direction:column;align-items:center"></div></div>
+</div>
+<div class="toast" id="toast"></div>
+<div style="display:flex;gap:10px;margin-top:10px"><button id="menu">Menu</button><button id="set">Settings</button></div>
+<div class="legend">
+  <span><i style="background:#7b3fb8"></i><u class="gl">🦋</u>20</span>
+  <span><i style="background:#d6453d"></i><u class="gl">▲</u>10</span>
+  <span><i style="background:#3d7bd6"></i><u class="gl">●</u>5</span>
+  <span><i style="background:#4fb06a"></i><u class="gl">◆</u>3</span>
+  <span><i id="ylw" style="background:#8f969c"></i><u class="gl">❄</u>2</span>
+</div>
+<script>
+(function(){
+var cv=document.getElementById('c'),ctx=cv.getContext('2d'),$=function(i){return document.getElementById(i)};
+var types=[['#161616',20],['#d6453d',10],['#3d7bd6',5],['#4fb06a',3],['#e8c445',2]];
+var NAMES={classic:'Classic',challenge:'Challenge',mission:'Color Mission',adventure:'Adventure'};
+var S=520,sticks=[],gone=[],score=0,strikes=0,over=true,shake=0,best=0,M=null,lvl=1,time=0,moves=0,mis=[],mi=0,drag=null,T=0,last=0,W=.022,lastInfo='',paused=false,set={input:'drag',shapes:false,grey:true},tilt={g:0,b:40,on:false};
+var SH={'#161616':'sq','#d6453d':'tri','#3d7bd6':'ci','#4fb06a':'di','#e8c445':'pl'},GL={'#161616':'🦋','#d6453d':'▲','#3d7bd6':'●','#4fb06a':'◆','#e8c445':'❄'};
+try{var j=JSON.parse(localStorage.getItem('pus2-set'));if(j){set.input=j.input||'drag';set.shapes=!!j.shapes;set.grey=j.grey!==false}}catch(e){}
+function saveSet(){try{localStorage.setItem('pus2-set',JSON.stringify(set))}catch(e){}document.body.classList.toggle('shapes',set.shapes);var y=document.getElementById('ylw');if(y)y.style.background=disp('#e8c445')}
+function disp(c){if(c=='#161616')return '#7b3fb8';return c=='#e8c445'&&set.grey?'#8f969c':c}
+function shape(k,x,y,r){ctx.beginPath();
+ if(k=='ci')ctx.arc(x,y,r,0,7);
+ else if(k=='sq'){var q=r*.9;ctx.beginPath();
+  [[-.75,-.45,.8,.65],[.75,-.45,.8,.65],[-.55,.6,.55,.45],[.55,.6,.55,.45]].forEach(function(w){var cx=x+w[0]*q,cy=y+w[1]*q;ctx.moveTo(cx+w[2]*q,cy);ctx.ellipse(cx,cy,w[2]*q,w[3]*q,0,0,7)});
+  ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#000';ctx.lineWidth=1.2;ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x,y-q*.85);ctx.lineTo(x,y+q*.95);ctx.lineWidth=2;ctx.stroke();return}
+ else if(k=='tri'){ctx.moveTo(x,y-r*1.1);ctx.lineTo(x+r*1.1,y+r*.9);ctx.lineTo(x-r*1.1,y+r*.9);ctx.closePath()}
+ else if(k=='di'){ctx.moveTo(x,y-r*1.2);ctx.lineTo(x+r*1.2,y);ctx.lineTo(x,y+r*1.2);ctx.lineTo(x-r*1.2,y);ctx.closePath()}
+ else{var R=r*1.3,L=[['#000',3.6],['#fff',1.7]];ctx.lineCap='round';
+  L.forEach(function(p){ctx.beginPath();
+   for(var i=0;i<6;i++){var a=i*Math.PI/3,c=Math.cos(a),s=Math.sin(a);ctx.moveTo(x,y);ctx.lineTo(x+c*R,y+s*R);
+    var bx=x+c*R*.62,by=y+s*R*.62;
+    [-1,1].forEach(function(d){ctx.moveTo(bx,by);ctx.lineTo(bx+Math.cos(a+d*.9)*R*.38,by+Math.sin(a+d*.9)*R*.38)})}
+   ctx.strokeStyle=p[0];ctx.lineWidth=p[1];ctx.stroke()});return}
+ ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#000';ctx.lineWidth=1.2;ctx.stroke()}
+function rnd(a,b){return a+Math.random()*(b-a)}
+function getBest(){try{return +localStorage.getItem('pus2-'+M)||0}catch(e){return 0}}
+function size(){var w=cv.parentNode.clientWidth;S=w;var r=window.devicePixelRatio||1;cv.width=w*r;cv.height=w*r;cv.style.height=w+'px';ctx.setTransform(r,0,0,r,0,0)}
+function say(t){$('toast').textContent=t}
+function show(t,p,btns){$('mt').textContent=t;$('mp').innerHTML=p;var b=$('mb');b.innerHTML='';btns.forEach(function(x){var e=document.createElement('button');e.innerHTML=x[0];e.onclick=x[1];b.appendChild(e)});$('msg').style.display='flex'}
+function menu(){over=true;paused=false;M=null;sticks=[];gone=[];score=0;strikes=0;best=0;hud();$('info').textContent='';
+ var d={classic:'One stick at a time. Bump another and you lose a turn.',challenge:'Beat the clock and the move limit. Levels get harder.',mission:'Collect colors in the right order.',adventure:'Moving, locked and special sticks.'};
+ show('Pick Up Sticks','Choose a mode',Object.keys(NAMES).map(function(k){return [NAMES[k]+'<small>'+d[k]+'</small>',function(){start(k,1)}]}))}
+function build(n){
+  var list=[];for(var i=0;i<n;i++)list.push(types[i<1?0:i<3?1:i<7?2:i<12?3:4]);
+  list.sort(function(){return Math.random()-.5});
+  sticks=list.map(function(t,i){var a=rnd(0,Math.PI),len=rnd(.42,.58),cx=rnd(.32,.68),cy=rnd(.32,.68),dx=Math.cos(a)*len/2,dy=Math.sin(a)*len/2;
+    return {b:[cx-dx,cy-dy,cx+dx,cy+dy],x1:0,y1:0,x2:0,y2:0,c:t[0],v:t[1],z:i,ph:rnd(0,6)}});
+  sticks.forEach(function(s){place(s)});
+}
+function place(s,ox,oy){ox=ox||0;oy=oy||0;s.x1=s.b[0]+ox;s.y1=s.b[1]+oy;s.x2=s.b[2]+ox;s.y2=s.b[3]+oy}
+function pick(k){var pool=sticks.filter(function(s){return !s.star&&!s.key&&!s.lock});pool.sort(function(){return Math.random()-.5});return pool.slice(0,k)}
+function start(mode,l,keep){
+  M=mode;lvl=l;over=false;gone=[];drag=null;if(!keep){score=0;strikes=0}
+  var n=mode=='classic'?25:mode=='challenge'?Math.min(10+3*l,36):Math.min(12+2*l,mode=='mission'?28:30);
+  build(n);
+  if(mode=='challenge'){time=Math.max(25,70-6*l);moves=n+Math.max(1,6-l)}
+  if(mode=='mission'){var k=Math.min(3+l,8);mis=sticks.slice().sort(function(){return Math.random()-.5}).slice(0,k).map(function(s){return s.c});mi=0}
+  if(mode=='adventure'){
+    var st=pick(1)[0];st.star=true;st.c='#f0b429';st.v=0;
+    if(l>=2){var p=Math.min(.25+.1*l,.7);sticks.forEach(function(s){if(!s.star&&Math.random()<p)s.mv=true})}
+    if(l>=3){var key=pick(1)[0];key.key=true;key.c='#f5f5f5';key.v=0;key.mv=false;pick(Math.floor(l/2)+1).forEach(function(s){s.lock=true})}
+  }
+  best=getBest();$('msg').style.display='none';say('');lastInfo='';hud();
+}
+function hud(){$('score').textContent=score;$('left').textContent=sticks.length;$('best').textContent=best;$('strikes').textContent='✕✕✕'.slice(0,strikes)+'○○○'.slice(0,3-strikes)}
+function info(){
+  var h='';
+  if(M=='challenge'){var tt=Math.ceil(time);h='Level '+lvl+' · '+Math.floor(tt/60)+':'+('0'+tt%60).slice(-2)+' · '+moves+' moves left'}
+  else if(M=='mission'){h='Level '+lvl+' · order: '+mis.map(function(c,i){return '<span class="chip'+(i<mi?' done':i==mi?' cur':'')+'" style="background:'+disp(c)+'">'+(set.shapes?GL[c]:'')+'</span>'}).join('')}
+  else if(M=='adventure'){h='Level '+lvl+' · '+(lvl<2?'Grab the gold star to heal a strike.':lvl<3?'Some sticks drift. Time your tap.':'Locked sticks open when you pick the white key.')}
+  else if(M=='classic')h='Classic'
+  if(h!=lastInfo){lastInfo=h;$('info').innerHTML=h}
+}
+function pd(px,py,ax,ay,bx,by){var dx=bx-ax,dy=by-ay,t=((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy);t=Math.max(0,Math.min(1,t));var x=ax+t*dx-px,y=ay+t*dy-py;return Math.sqrt(x*x+y*y)}
+function cross(a,b){function o(p,q,r,s,t,u){return (q-s)*(t-p)-(r-p)*(u-q)}
+  return o(a.x1,a.y1,a.x2,a.y2,b.x1,b.y1)*o(a.x1,a.y1,a.x2,a.y2,b.x2,b.y2)<0&&o(b.x1,b.y1,b.x2,b.y2,a.x1,a.y1)*o(b.x1,b.y1,b.x2,b.y2,a.x2,a.y2)<0}
+function sd(a,b){if(cross(a,b))return 0;return Math.min(pd(a.x1,a.y1,b.x1,b.y1,b.x2,b.y2),pd(a.x2,a.y2,b.x1,b.y1,b.x2,b.y2),pd(b.x1,b.y1,a.x1,a.y1,a.x2,a.y2),pd(b.x2,b.y2,a.x1,a.y1,a.x2,a.y2))}
+function covered(s){return sticks.some(function(o){return o.z>s.z&&sd(s,o)<W})}
+function draw(){
+  ctx.clearRect(0,0,S,S);ctx.save();
+  if(shake>0)ctx.translate(Math.sin(shake*2)*shake*.6,0);
+  ctx.lineCap='round';ctx.textAlign='center';ctx.textBaseline='middle';
+  function stick(s,al,off){
+    ctx.globalAlpha=al*(s.lock?.7:1);
+    ctx.strokeStyle='rgba(0,0,0,.35)';ctx.lineWidth=W*S+2;ctx.beginPath();ctx.moveTo(s.x1*S+2,s.y1*S+3+off);ctx.lineTo(s.x2*S+2,s.y2*S+3+off);ctx.stroke();
+    ctx.strokeStyle=disp(s.c);ctx.lineWidth=W*S;ctx.beginPath();ctx.moveTo(s.x1*S,s.y1*S+off);ctx.lineTo(s.x2*S,s.y2*S+off);ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,.28)';ctx.lineWidth=W*S*.25;ctx.beginPath();ctx.moveTo(s.x1*S,s.y1*S+off-W*S*.2);ctx.lineTo(s.x2*S,s.y2*S+off-W*S*.2);ctx.stroke();
+    var g=s.lock?'🔒':s.star?'★':s.key?'🗝':'';
+    if(set.shapes&&SH[s.c]){ctx.globalAlpha=al;[.17,.5,.83].forEach(function(t,i){if(g&&i==1)return;shape(SH[s.c],(s.x1+(s.x2-s.x1)*t)*S,(s.y1+(s.y2-s.y1)*t)*S+off,W*S*.42)})}
+    if(g){ctx.globalAlpha=al;ctx.font=(W*S*1.6)+'px sans-serif';ctx.fillStyle='#fff';ctx.strokeStyle='#000';ctx.lineWidth=1;ctx.fillText(g,(s.x1+s.x2)/2*S,(s.y1+s.y2)/2*S+off)}
+  }
+  sticks.forEach(function(s){stick(s,1,0)});
+  gone.forEach(function(g){stick(g.s,Math.max(0,1-g.t),-g.t*40)});
+  ctx.restore();ctx.globalAlpha=1;
+}
+function frame(ts){
+  var dt=Math.min(.05,(ts-last)/1000||0);last=ts;if(!paused)T+=dt;
+  if(!over&&!paused&&M=='challenge'&&sticks.length){time-=dt;if(time<=0){time=0;lose('Time’s up')}}
+  sticks.forEach(function(s){if(drag&&drag.s===s)return;if(s.mv)place(s,Math.sin(T*.9+s.ph)*.05,Math.cos(T*.7+s.ph)*.04);else place(s)});
+  if(drag&&drag.tilt&&!paused){
+    if(!tilt.on&&T-drag.t0>1.5){drag=null;set.input='drag';saveSet();say('No tilt sensor found. Switched to drag.');if(M=='challenge')moves++}
+    else{drag.dx+=Math.max(-40,Math.min(40,tilt.g))/40*.35*dt;drag.dy+=Math.max(-40,Math.min(40,tilt.b-40))/40*.35*dt;moveDrag()}
+  }
+  gone.forEach(function(g){g.t+=dt*3.5});gone=gone.filter(function(g){return g.t<1});
+  if(shake>0)shake=Math.max(0,shake-1);
+  info();draw();requestAnimationFrame(frame);
+}
+function saveBest(){if(score>best){best=score;try{localStorage.setItem('pus2-'+M,best)}catch(e){}}hud()}
+function lose(why){if(over)return;over=true;drag=null;saveBest();setTimeout(function(){show(why,'You scored '+score+(score>=best&&score>0?' — a new best.':'.'),[['Play again',function(){start(M,1)}],['Menu',menu]])},350)}
+function win(){
+  over=true;var bonus=10*lvl;
+  if(M=='challenge')bonus+=Math.ceil(time)*2+Math.max(0,moves)*3;
+  score+=bonus;saveBest();hud();
+  setTimeout(function(){
+    if(M=='classic')show('Pile cleared','Score '+score+' (includes +'+bonus+' bonus).',[['Play again',function(){start(M,1)}],['Menu',menu]]);
+    else show('Level '+lvl+' complete','Bonus +'+bonus+'. Score '+score+'.',[['Next level',function(){start(M,lvl+1,true)}],['Menu',menu]]);
+  },400);
+}
+function strike(msg){strikes++;shake=14;say(msg);hud();if(strikes>=3)lose('Three strikes');else if(M=='challenge'&&moves<=0)lose('Out of moves')}
+function take(s){
+  var ok=true;
+  if(M=='mission'){if(s.c!==mis[mi]){score=Math.max(0,score-5);say('Wrong color, −5');ok=false}else{score+=s.v+5;mi++;say('+'+(s.v+5))}}
+  else if(s.star){strikes=Math.max(0,strikes-1);score+=25;say('Star! +25 and a strike healed')}
+  else if(s.key){sticks.forEach(function(o){o.lock=false});score+=10;say('Key! Locks open, +10')}
+  else{score+=s.v;say('+'+s.v)}
+  sticks.splice(sticks.indexOf(s),1);gone.push({s:s,t:0});hud();
+  if(M=='mission'){
+    if(mi>=mis.length)return win();
+    var need={};mis.slice(mi).forEach(function(c){need[c]=(need[c]||0)+1});
+    for(var c in need)if(sticks.filter(function(o){return o.c==c}).length<need[c])return lose('Mission failed');
+  }
+  if(!sticks.length)return win();
+  if(M=='challenge'&&moves<=0)lose('Out of moves');
+}
+function pos(e){var r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)/r.width,y:(e.clientY-r.top)/r.height}}
+cv.addEventListener('pointerdown',function(e){
+  if(over||drag||paused)return;var p=pos(e),hit=null;
+  sticks.forEach(function(s){if(pd(p.x,p.y,s.x1,s.y1,s.x2,s.y2)<W*1.3&&(!hit||s.z>hit.z))hit=s});
+  if(!hit)return;
+  if(M=='challenge')moves--;
+  if(hit.lock){say('Locked. Pick the white key stick first.');if(M=='challenge'&&moves<=0)lose('Out of moves');return}
+  if(covered(hit))return strike('Buried. Clear the sticks on top first.');
+  drag={s:hit,x:p.x,y:p.y,dx:0,dy:0,mode:set.input,tilt:set.input=='tilt',t0:T,o:[hit.x1,hit.y1,hit.x2,hit.y2],near:sticks.filter(function(o){return o!==hit&&sd(hit,o)<W})};
+  try{cv.setPointerCapture(e.pointerId)}catch(x){}
+});
+cv.addEventListener('pointermove',function(e){
+  if(!drag||paused)return;var p=pos(e);drag.dx=p.x-drag.x;drag.dy=p.y-drag.y;if(drag.mode=='drag')moveDrag();
+});
+function moveDrag(){
+  var s=drag.s,o=drag.o,dx=drag.dx,dy=drag.dy;
+  s.x1=o[0]+dx;s.y1=o[1]+dy;s.x2=o[2]+dx;s.y2=o[3]+dy;
+  if(sticks.some(function(q){return q!==s&&drag.near.indexOf(q)<0&&sd(s,q)<W*.9})){drag=null;strike('Bumped another stick. Turn lost.');return}
+  if(drag.tilt&&Math.hypot(dx,dy)>.25){drag=null;take(s)}
+}
+function up(){
+  if(!drag)return;var s=drag.s,d=Math.hypot(drag.dx,drag.dy),m=drag.mode;drag=null;
+  if(m=='tap'||(m=='swipe'&&d>.08)||(m=='drag'&&d>.04))take(s);
+  else{if(M=='challenge')moves++;say(m=='swipe'?'Swipe across the stick to pick it up.':m=='tilt'?'Keep holding and tilt your device.':'Drag the stick clear of the pile.')}
+}
+cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',function(){drag=null});
+$('menu').onclick=menu;
+window.addEventListener('deviceorientation',function(e){if(e.gamma==null)return;tilt.g=e.gamma;tilt.b=e.beta;tilt.on=true});
+function pickTilt(){var D=window.DeviceOrientationEvent;
+  if(D&&typeof D.requestPermission=='function'){D.requestPermission().then(function(r){if(r=='granted')set.input='tilt';else say('Tilt permission was denied.');saveSet();settings()}).catch(function(){settings()})}
+  else{set.input='tilt';saveSet();settings()}}
+function settings(){
+  paused=true;
+  var I=[['tap','Tap','Tap a stick to pick it up'],['drag','Drag','Drag a stick clear of the pile'],['swipe','Swipe','Flick across a stick to pick it up'],['tilt','Tilt','Hold a stick and tilt your device']];
+  show('Settings','Move sticks by',I.map(function(x){return [(set.input==x[0]?'✓ ':'')+x[1]+'<small>'+x[2]+'</small>',function(){if(x[0]=='tilt')pickTilt();else{set.input=x[0];saveSet();settings()}}]}).concat([
+    ['Color shapes: '+(set.shapes?'On':'Off')+'<small>Adds a shape to every color for color-blind play</small>',function(){set.shapes=!set.shapes;saveSet();settings()}],
+    ['Lightest stick: '+(set.grey?'Grey':'Yellow')+'<small>Tap to switch between grey and yellow</small>',function(){set.grey=!set.grey;saveSet();settings()}],
+    ['Done',function(){paused=false;if(M&&!over)$('msg').style.display='none';else menu()}]]));
+}
+$('set').onclick=settings;saveSet();
+window.addEventListener('resize',size);
+size();menu();requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
