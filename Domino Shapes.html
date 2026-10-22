@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Domino Shapes</title>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:light;--bg:#e9efe7;--fg:#102019;--panel:#fff;--btn:#0b5d3b;--btnfg:#fff;--hi:#c2410c;--u:56px;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#0f1d17;--fg:#f2f7f3;--panel:#1b2f26;--btn:#8fd9ac;--btnfg:#08170f;--hi:#ffb454}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#0f1d17;--fg:#f2f7f3;--panel:#1b2f26;--btn:#8fd9ac;--btnfg:#08170f;--hi:#ffb454}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:400 1.25rem/1.4 "Atkinson Hyperlegible",Verdana,Arial,sans-serif}
+main{max-width:920px;margin:0 auto;padding:12px 14px 40px}
+h1{font-size:2rem;margin:4px 0 2px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.panel{background:var(--panel);border-radius:14px;padding:14px 16px;margin:12px 0}
+#prompt{font-size:1.6rem;font-weight:700;margin:0}
+#note{margin:4px 0 0}
+button.b{font:700 1.3rem "Atkinson Hyperlegible",Verdana,Arial,sans-serif;min-height:60px;padding:0 22px;border:0;border-radius:12px;background:var(--btn);color:var(--btnfg);cursor:pointer}
+button.b:focus-visible,.tbtn:focus-visible{outline:4px solid var(--fg);outline-offset:3px}
+.actions{display:flex;flex-wrap:wrap;gap:12px;margin:12px 0;min-height:60px}
+#board{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;padding:14px;min-height:calc(var(--u)*2.4)}
+#hand{display:flex;flex-wrap:wrap;gap:12px}
+.tbtn{background:none;border:0;padding:0;cursor:pointer;border-radius:12px}
+.tile{display:flex;background:#111;border:3px solid #d9d4c3;border-radius:10px;color:#fffdf5}
+.tile.dbl{flex-direction:column}
+.half{width:var(--u);height:var(--u);display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:calc(var(--u)*.12);box-sizing:border-box;place-items:center}
+.tile .half+.half{border-left:3px solid #d9d4c3}
+.tile.dbl .half+.half{border-left:0;border-top:3px solid #d9d4c3}
+.p{width:78%;height:78%;border-radius:50%;background:#111}
+.end .tile{box-shadow:0 0 0 5px var(--hi)}
+.ok .tile{box-shadow:0 0 0 6px var(--hi)}
+.sel .tile{transform:translateY(-8px)}
+.lbl{font-weight:700;margin:14px 0 6px}
+@media(prefers-reduced-motion:no-preference){.tile{transition:transform .15s}}
+</style>
+</head>
+<body>
+<main>
+<div class="row">
+ <div><h1>Domino Shapes</h1><div id="score"></div></div>
+ <div class="row" style="gap:8px">
+  <button class="b" id="smaller" aria-label="Make tiles smaller">A−</button>
+  <button class="b" id="bigger" aria-label="Make tiles bigger">A+</button>
+  <button class="b" id="again">New game</button>
+ </div>
+</div>
+<div class="panel" aria-live="polite"><p id="prompt"></p><p id="note"></p><div id="info"></div></div>
+<div id="board" class="panel" aria-label="Played tiles"></div>
+<div class="actions" id="actions"></div>
+<div class="lbl">Your tiles</div>
+<div id="hand"></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const SH=[{n:"Blank"},
+{n:"Circle",c:"#1d6fd6",s:'<circle cx="50" cy="50" r="38"/>'},
+{n:"Square",c:"#2a9d4b",s:'<rect x="14" y="14" width="72" height="72"/>'},
+{n:"Triangle",c:"#e8a400",s:'<polygon points="50,10 92,86 8,86"/>'},
+{n:"Star",c:"#d62828",s:'<polygon points="50,6 62,37 95,38 69,58 78,91 50,72 22,91 31,58 5,38 38,37"/>'},
+{n:"Diamond",c:"#7b3fc4",s:'<polygon points="50,4 94,50 50,96 6,50"/>'},
+{n:"Heart",c:"#e0488a",s:'<path d="M50 90C8 58 4 30 27 19C40 13 50 23 50 32C50 23 60 13 73 19C96 30 92 58 50 90Z"/>'},
+{n:"Tree",c:"#146c43",s:'<polygon points="50,6 78,38 64,38 88,66 60,66 60,92 40,92 40,66 12,66 36,38 22,38"/>'},
+{n:"Reindeer",c:"#8b5a2b",s:'<path fill="none" stroke-width="7" stroke-linecap="round" d="M34 34L22 12L12 14M27 22L16 26M66 34L78 12L88 14M73 22L84 26"/><path d="M30 34L70 34L62 74L50 90L38 74Z"/><circle cx="40" cy="52" r="4" fill="#111" stroke="none"/><circle cx="60" cy="52" r="4" fill="#111" stroke="none"/><circle cx="50" cy="80" r="8" fill="#d62828"/>'},
+{n:"Gingerbread House",c:"#c9772b",s:'<rect x="66" y="10" width="14" height="26" fill="#111"/><polygon points="50,8 92,44 82,44 82,92 18,92 18,44 8,44"/><path fill="none" stroke="#fffdf5" stroke-width="5" d="M18 44L50 16L82 44"/><rect x="42" y="62" width="16" height="30" fill="#d62828" stroke="#111" stroke-width="3"/><rect x="26" y="54" width="10" height="10" fill="#fffdf5" stroke="none"/><rect x="64" y="54" width="10" height="10" fill="#fffdf5" stroke="none"/>'},
+{n:"Snowflake",c:"none",s:[["#111",15],["#b8c0c8",8]].map(k=>'<g fill="none" stroke="'+k[0]+'" stroke-width="'+k[1]+'" stroke-linecap="round" stroke-linejoin="round">'+[0,60,120].map(r=>'<g transform="rotate('+r+' 50 50)"><path d="M50 8V92M38 20L50 32L62 20M38 80L50 68L62 80"/></g>').join("")+'</g>').join("")}];
+const nm=n=>SH[n].n,tn=t=>nm(t[0])+" and "+nm(t[1]);
+let hand,cpu,yard,board,turn,over,sel,note,wins={you:0,cpu:0},u=56;
+try{const s=parseInt(localStorage.getItem("bd-size"));if(s>=40&&s<=104)u=s}catch(e){}
+function setU(d){u=Math.max(40,Math.min(104,u+d));document.documentElement.style.setProperty("--u",u+"px");try{localStorage.setItem("bd-size",u)}catch(e){}}
+function half(n){const h=document.createElement("div");h.className="half";if(n>0){h.innerHTML='<svg viewBox="0 0 100 100" style="width:100%;height:100%" fill="'+SH[n].c+'" stroke="#fffdf5" stroke-width="6" stroke-linejoin="round">'+SH[n].s+'</svg>'}return h}
+function tileEl(l,r){const t=document.createElement("div");t.className="tile"+(l===r?" dbl":"");t.append(half(l),half(r));return t}
+const sum=t=>t[0]+t[1];
+function ends(){return[board[0].l,board[board.length-1].r]}
+function sides(t){const[L,R]=ends(),s=[];if(t[0]===R||t[1]===R)s.push("R");if(L!==R&&(t[0]===L||t[1]===L))s.push("L");return s}
+const canPlay=t=>sides(t).length>0;
+function place(t,side){const[L,R]=ends(),[x,y]=t;
+ if(side==="R")board.push(x===R?{l:x,r:y}:{l:y,r:x});
+ else board.unshift(y===L?{l:x,r:y}:{l:y,r:x})}
+function newGame(){
+ const all=[];for(let a=0;a<SH.length;a++)for(let b=a;b<SH.length;b++)all.push([a,b]);
+ for(let i=all.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[all[i],all[j]]=[all[j],all[i]]}
+ hand=all.splice(0,9);cpu=all.splice(0,9);yard=all;over=false;sel=null;
+ const best=t=>t[0]===t[1]?100+t[0]:sum(t);
+ const hb=hand.reduce((m,t)=>Math.max(m,best(t)),0),cb=cpu.reduce((m,t)=>Math.max(m,best(t)),0);
+ const who=hb>=cb?"you":"cpu",h=who==="you"?hand:cpu;
+ const t=h.reduce((m,x)=>best(x)>best(m)?x:m,h[0]);
+ h.splice(h.indexOf(t),1);board=[{l:t[0],r:t[1]}];
+ note=(who==="you"?"You":"Computer")+" started with "+tn(t)+".";
+ turn=who==="you"?"cpu":"you";render();
+ if(turn==="cpu")setTimeout(cpuStep,1200)}
+function play(who,t,side){const h=who==="you"?hand:cpu;h.splice(h.indexOf(t),1);place(t,side);sel=null;
+ note=(who==="you"?"You":"Computer")+" played "+tn(t)+".";
+ if(!h.length)return finish(who);next(who)}
+function next(who){
+ if(!yard.length&&!hand.some(canPlay)&&!cpu.some(canPlay))return finish("block");
+ turn=who==="you"?"cpu":"you";render();
+ if(turn==="cpu")setTimeout(cpuStep,1200)}
+function finish(w){over=true;sel=null;const a=hand.length,b=cpu.length;
+ if(w==="block"){w=a<b?"you":b<a?"cpu":"tie";note="Nobody can move. You have "+a+" tiles left, the computer has "+b+".";}
+ if(w==="you"){wins.you++;note+=" You win!"}
+ else if(w==="cpu"){wins.cpu++;note+=" The computer wins this one."}
+ else note+=" It’s a tie.";
+ render()}
+function cpuStep(){if(over)return;
+ const p=cpu.filter(canPlay).sort((a,b)=>sum(b)-sum(a));
+ if(p.length)return play("cpu",p[0],sides(p[0])[0]);
+ if(yard.length){cpu.push(yard.pop());note="The computer had no match and drew a tile.";render();return setTimeout(cpuStep,1200)}
+ note="The computer has no move and passes.";next("cpu")}
+function tap(t){if(turn!=="you"||over)return;const s=sides(t),[L,R]=ends();
+ if(!s.length){note="That tile doesn’t match. The open ends are "+nm(L)+" and "+nm(R)+".";sel=null;return render()}
+ if(s.length===1)return play("you",t,s[0]);
+ sel=t;render()}
+function render(){
+ $("score").textContent="You "+wins.you+"  ·  Computer "+wins.cpu;
+ const[L,R]=ends();let pr;
+ if(over)pr="Game over";
+ else if(turn==="cpu")pr="Computer is thinking…";
+ else if(sel)pr="Which end? Choose below.";
+ else if(hand.some(canPlay))pr="Your turn. Tap a tile with an orange glow.";
+ else if(yard.length)pr="No match. Draw a tile.";
+ else pr="No match and nothing left to draw. Pass.";
+ $("prompt").textContent=pr;$("note").textContent=note||"";
+ $("info").textContent="Open ends: "+nm(L)+" and "+nm(R)+"  ·  Computer has "+cpu.length+" tiles  ·  Draw pile: "+yard.length;
+ const bd=$("board");bd.textContent="";
+ board.forEach((c,i)=>{const d=document.createElement("div");if(i===0||i===board.length-1)d.className="end";d.appendChild(tileEl(c.l,c.r));bd.appendChild(d)});
+ const ac=$("actions");ac.textContent="";
+ const mk=(txt,fn)=>{const b=document.createElement("button");b.className="b";b.textContent=txt;b.onclick=fn;ac.appendChild(b)};
+ if(!over&&turn==="you"){
+  if(sel){mk("Left end ("+nm(L)+")",()=>play("you",sel,"L"));mk("Right end ("+nm(R)+")",()=>play("you",sel,"R"));mk("Cancel",()=>{sel=null;render()})}
+  else if(!hand.some(canPlay)){
+   if(yard.length)mk("Draw a tile",()=>{hand.push(yard.pop());note="You drew a tile.";render()});
+   else mk("Pass",()=>{note="You passed.";next("you")})}}
+ const hd=$("hand");hd.textContent="";
+ [...hand].sort((a,b)=>sum(a)-sum(b)).forEach(t=>{
+  const b=document.createElement("button");
+  b.className="tbtn"+(turn==="you"&&!over&&canPlay(t)?" ok":"")+(t===sel?" sel":"");
+  b.setAttribute("aria-label","Tile: "+tn(t));
+  b.appendChild(tileEl(t[0],t[1]));b.onclick=()=>tap(t);hd.appendChild(b)})}
+$("bigger").onclick=()=>setU(8);$("smaller").onclick=()=>setU(-8);$("again").onclick=newGame;
+setU(0);newGame();
+</script>
+</body>
+</html>
