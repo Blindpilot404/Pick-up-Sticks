@@ -187,7 +187,7 @@ cv.addEventListener('pointerdown',function(e){
   if(M=='challenge')moves--;
   if(hit.lock){say('Locked. Pick the white key stick first.');if(M=='challenge'&&moves<=0)lose('Out of moves');return}
   if(covered(hit))return strike('Buried. Clear the sticks on top first.');
-  drag={s:hit,x:p.x,y:p.y,dx:0,dy:0,mode:set.input,tilt:set.input=='tilt',t0:T,o:[hit.x1,hit.y1,hit.x2,hit.y2],near:sticks.filter(function(o){return o!==hit&&sd(hit,o)<W})};
+  drag={s:hit,x:p.x,y:p.y,dx:0,dy:0,mode:set.input,tilt:set.input=='tilt',t0:T,o:[hit.x1,hit.y1,hit.x2,hit.y2],near:sticks.filter(function(o){return o!==hit&&sd(hit,o)<W*2})};
   try{cv.setPointerCapture(e.pointerId)}catch(x){}
 });
 cv.addEventListener('pointermove',function(e){
@@ -196,7 +196,8 @@ cv.addEventListener('pointermove',function(e){
 function moveDrag(){
   var s=drag.s,o=drag.o,dx=drag.dx,dy=drag.dy;
   s.x1=o[0]+dx;s.y1=o[1]+dy;s.x2=o[2]+dx;s.y2=o[3]+dy;
-  if(sticks.some(function(q){return q!==s&&drag.near.indexOf(q)<0&&sd(s,q)<W*.9})){drag=null;strike('Bumped another stick. Turn lost.');return}
+  if(sticks.some(function(q){return q!==s&&q.z>s.z&&drag.near.indexOf(q)<0&&sd(s,q)<W*.5})){drag=null;strike('Bumped another stick. Turn lost.');return}
+  if(drag.mode=='drag'&&Math.hypot(dx,dy)>.05){drag=null;take(s);return}
   if(drag.tilt&&Math.hypot(dx,dy)>.25){drag=null;take(s)}
 }
 function up(){
