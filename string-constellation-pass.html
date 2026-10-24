@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>String Constellation</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#14233a;--panel:#1d3150;--star:#f3ead2;--p1:#e8554e;--p2:#f2b84b;--ghost:#8fa3c4;--text:#eef1f7;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#e9edf5;--panel:#d5dcea;--star:#22304a;--p1:#c8372f;--p2:#b87a0a;--ghost:#5d6f90;--text:#1a2438;color-scheme:light}}
+:root[data-theme="dark"]{--bg:#14233a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:'Fraunces',Georgia,serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:16px}
+h1{font-size:1.5rem;margin:0;font-weight:700}
+#turn{margin:6px 0 12px;font-size:1.05rem;text-align:center}
+#board{width:min(100%,520px);aspect-ratio:1;background:var(--panel);border-radius:14px;display:block}
+.info{width:min(100%,520px);margin-top:12px}
+#fig{font-size:1.2rem;font-weight:700;margin:0}
+#hint{margin:4px 0 0;color:var(--ghost);line-height:1.4}
+.row{width:min(100%,520px);display:flex;gap:12px;margin-top:12px;align-items:center;justify-content:space-between}
+#count{color:var(--ghost)}
+button{font:inherit;background:var(--panel);color:var(--text);border:0;border-radius:10px;padding:10px 14px;cursor:pointer}
+button:focus-visible,.star:focus-visible{outline:3px solid var(--star);outline-offset:2px}
+.fig{animation:in .5s ease}
+@keyframes in{from{opacity:0}to{opacity:1}}
+.seg{stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round;fill:none}
+.pulse{animation:p 1.6s ease-in-out infinite}
+@keyframes p{50%{opacity:.35}}
+.star{cursor:pointer}
+.halo{fill:transparent}
+@media (prefers-reduced-motion:reduce){.fig,.pulse{animation:none}}
+</style>
+</head>
+<body>
+<h1>String Constellation</h1>
+<p id="turn"></p>
+<svg id="board" viewBox="0 0 100 100" aria-label="String figure"></svg>
+<div class="info"><p id="fig"></p><p id="hint"></p></div>
+<div class="row"><span id="count"></span><button id="restart">Start over</button></div>
+<script>
+// Each figure: name, hint, paths (polylines), stars (crossings the next player takes)
+const F=[
+{n:"Cradle",h:"Two parallel strings and two crossings. Take the string at a glowing crossing.",p:[[[15,30],[85,30]],[[15,70],[85,70]],[[15,30],[45,70]],[[15,70],[45,30]],[[55,30],[85,70]],[[55,70],[85,30]]],s:[[30,50],[70,50]]},
+{n:"Soldier’s Bed",h:"A bed of two long strings with an X in the middle.",p:[[[15,35],[85,35]],[[15,65],[85,65]],[[35,35],[65,65]],[[35,65],[65,35]]],s:[[50,50],[35,65],[65,65]]},
+{n:"Candles",h:"Two tall candles standing on a bent string.",p:[[[35,20],[35,80]],[[65,20],[65,80]],[[15,75],[50,55],[85,75]]],s:[[35,60],[65,60]]},
+{n:"Manger",h:"A low cradle with a crossed lid.",p:[[[15,75],[85,75]],[[20,30],[15,75]],[[80,30],[85,75]],[[20,30],[50,52],[80,30]],[[20,50],[50,52],[80,50]]],s:[[50,52],[20,50],[80,50]]},
+{n:"Diamonds",h:"One large diamond holding a smaller one.",p:[[[50,18],[82,50],[50,82],[18,50],[50,18]],[[50,34],[66,50],[50,66],[34,50],[50,34]]],s:[[50,18],[50,82],[34,50]]},
+{n:"Cat’s Eyes",h:"Two diamonds side by side, watching you. Take one to start the cradle again.",p:[[[30,35],[45,50],[30,65],[15,50],[30,35]],[[70,35],[85,50],[70,65],[55,50],[70,35]],[[45,50],[55,50]]],s:[[30,50],[70,50]]}
+];
+const board=document.getElementById('board');
+const NS='http://www.w3.org/2000/svg';
+let i=0,pass=0,player=0;
+const col=()=>player===0?'var(--p1)':'var(--p2)';
+function mk(t,a,p){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);p.appendChild(e);return e}
+function draw(){
+  const f=F[i];board.innerHTML='';
+  const g=mk('g',{class:'fig'},board);
+  f.p.forEach(pl=>mk('polyline',{points:pl.map(q=>q.join(',')).join(' '),class:'seg',stroke:col()},g));
+  f.s.forEach((s,k)=>{
+    const st=mk('g',{class:'star',tabindex:0,role:'button','aria-label':'Take the string here'},g);
+    mk('circle',{cx:s[0],cy:s[1],r:7,class:'halo'},st);
+    mk('circle',{cx:s[0],cy:s[1],r:4.5,fill:'var(--star)',opacity:.25,class:'pulse'},st);
+    mk('circle',{cx:s[0],cy:s[1],r:2.2,fill:'var(--star)'},st);
+    st.addEventListener('click',take);
+    st.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();take()}});
+  });
+  document.getElementById('fig').textContent=f.n;
+  document.getElementById('hint').textContent=f.h;
+  const t=document.getElementById('turn');
+  t.textContent='Player '+(player+1)+', take the string';
+  t.style.color=col();
+  document.getElementById('count').textContent=pass+' passes';
+}
+function take(){pass++;player=1-player;i=(i+1)%F.length;draw()}
+document.getElementById('restart').addEventListener('click',()=>{i=0;pass=0;player=0;draw()});
+draw();
+</script>
+</body>
+</html>
